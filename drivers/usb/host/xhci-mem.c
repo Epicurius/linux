@@ -42,19 +42,14 @@ static struct xhci_segment *xhci_segment_alloc(struct xhci_hcd *xhci,
 		return NULL;
 
 	seg->trbs = dma_pool_zalloc(xhci->segment_pool, flags, &dma);
-	if (!seg->trbs) {
-		kfree(seg);
-		return NULL;
-	}
+	if (!seg->trbs)
+		goto err_trbs;
 
 	if (max_packet) {
 		seg->bounce_buf = kzalloc_node(max_packet, flags,
 					dev_to_node(dev));
-		if (!seg->bounce_buf) {
-			dma_pool_free(xhci->segment_pool, seg->trbs, dma);
-			kfree(seg);
-			return NULL;
-		}
+		if (!seg->bounce_buf)
+			goto err_bounce_buf;
 	}
 	/* If the cycle state is 0, set the cycle bit to 1 for all the TRBs */
 	if (cycle_state == 0) {
@@ -66,6 +61,13 @@ static struct xhci_segment *xhci_segment_alloc(struct xhci_hcd *xhci,
 	seg->next = NULL;
 
 	return seg;
+
+err_bounce_buf:
+	dma_pool_free(xhci->segment_pool, seg->trbs, dma);
+err_trbs:
+	kfree(seg);
+
+	return NULL;
 }
 
 static void xhci_segment_free(struct xhci_hcd *xhci, struct xhci_segment *seg)
