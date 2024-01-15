@@ -309,10 +309,10 @@ static unsigned int xhci_num_trbs_free(struct xhci_hcd *xhci, struct xhci_ring *
 
 /*
  * Check to see if there's room to enqueue num_trbs on the ring and make sure
- * enqueue pointer will not advance into dequeue segment. See rules above.
- * return number of new segments needed to ensure this.
+ * enqueue pointer will not advance into dequeue segment, this is to guarantee
+ * the safety of ring expansion. See rules above. Return number of new segments
+ * needed to ensure this.
  */
-
 static unsigned int xhci_ring_expansion_needed(struct xhci_hcd *xhci, struct xhci_ring *ring,
 					       unsigned int num_trbs)
 {
@@ -323,13 +323,13 @@ static unsigned int xhci_ring_expansion_needed(struct xhci_hcd *xhci, struct xhc
 
 	enq_used = ring->enqueue - ring->enq_seg->trbs;
 
-	/* how many trbs will be queued past the enqueue segment? */
+	/* How many TRBs will be queued past the enqueue segment? */
 	trbs_past_seg = enq_used + num_trbs - (TRBS_PER_SEGMENT - 1);
 
 	if (trbs_past_seg <= 0)
 		return 0;
 
-	/* Empty ring special case, enqueue stuck on link trb while dequeue advanced */
+	/* Empty ring special case, enqueue stuck on link TRB while dequeue advanced */
 	if (trb_is_link(ring->enqueue) && ring->enq_seg->next->trbs == ring->dequeue)
 		return 0;
 
