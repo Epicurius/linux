@@ -1790,6 +1790,13 @@ static int xhci_alloc_erst(struct xhci_hcd *xhci,
 	if (!erst->entries)
 		return -ENOMEM;
 
+	/* 'erst_size' represents the maximum capacity of entries that ERST can
+	 * hold. On the other hand, 'num_entries' indicates the actual number of
+	 * entries currently held in the ERST. At present, these two values are
+	 * identical due to the fact that the xhci driver does not support ERST
+	 * expansion.
+	 */
+	erst->erst_size = evt_ring->num_segs;
 	erst->num_entries = evt_ring->num_segs;
 
 	seg = evt_ring->first_seg;
@@ -1829,14 +1836,14 @@ xhci_remove_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *ir)
 static void xhci_free_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *ir)
 {
 	struct device *dev = xhci_to_hcd(xhci)->self.sysdev;
-	size_t erst_size;
+	size_t size;
 
 	if (!ir)
 		return;
 
 	if (ir->erst.entries) {
-		erst_size = sizeof(struct xhci_erst_entry) * ir->erst.num_entries;
-		dma_free_coherent(dev, erst_size, ir->erst.entries, ir->erst.erst_dma_addr);
+		size = sizeof(struct xhci_erst_entry) * ir->erst.erst_size;
+		dma_free_coherent(dev, size, ir->erst.entries, ir->erst.erst_dma_addr);
 		ir->erst.entries = NULL;
 	}
 

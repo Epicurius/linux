@@ -400,6 +400,7 @@ static int dbc_erst_alloc(struct device *dev, struct xhci_ring *evt_ring,
 	if (!erst->entries)
 		return -ENOMEM;
 
+	erst->erst_size = 1;
 	erst->num_entries = 1;
 	erst->entries[0].seg_addr = cpu_to_le64(evt_ring->first_seg->dma);
 	erst->entries[0].seg_size = cpu_to_le32(TRBS_PER_SEGMENT);
