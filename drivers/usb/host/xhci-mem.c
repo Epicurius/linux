@@ -1790,6 +1790,13 @@ static int xhci_alloc_erst(struct xhci_hcd *xhci,
 	if (!erst->entries)
 		return -ENOMEM;
 
+	/*
+	 * 'erst_size' is the number of entries ERST can contain, while
+	 * 'num_entries' is the number of entries ERST contains. They are
+	 * currently the same value, because xHCI does not currently support
+	 * ERST expansion.
+	 */
+	erst->erst_size = evt_ring->num_segs;
 	erst->num_entries = evt_ring->num_segs;
 
 	seg = evt_ring->first_seg;
@@ -1835,7 +1842,7 @@ xhci_free_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *ir)
 	if (!ir)
 		return;
 
-	erst_size = sizeof(struct xhci_erst_entry) * ir->erst.num_entries;
+	erst_size = sizeof(struct xhci_erst_entry) * ir->erst.erst_size;
 	if (ir->erst.entries)
 		dma_free_coherent(dev, erst_size,
 				  ir->erst.entries,
