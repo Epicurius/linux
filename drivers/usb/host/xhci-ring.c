@@ -317,29 +317,23 @@ static unsigned int xhci_num_trbs_free(struct xhci_hcd *xhci, struct xhci_ring *
 static unsigned int xhci_ring_expansion_needed(struct xhci_hcd *xhci, struct xhci_ring *ring,
 					       unsigned int num_trbs)
 {
-	struct xhci_segment *seg;
+	struct xhci_segment *seg = ring->enq_seg;
 	int trbs_past_seg;
-	int enq_used;
 	int new_segs;
 
-	enq_used = ring->enqueue - ring->enq_seg->trbs;
-
-	/* How many TRBs will be queued past the enqueue segment? */
-	trbs_past_seg = enq_used + num_trbs - (TRBS_PER_SEGMENT - 1);
-
-	if (trbs_past_seg <= 0)
-		return 0;
-
-	/* Empty ring special case, enqueue stuck on link TRB while dequeue advanced */
 	if (trb_is_link(ring->enqueue)) {
-		seg = list_next_entry_circular(ring->enq_seg, &ring->seg_list, list);
-		if (seg->trbs == ring->dequeue)
+		/* Empty ring special case, enqueue stuck on link TRB while dequeue advanced */
+		if (list_next_entry_circular(seg, &ring->seg_list, list)->trbs == ring->dequeue)
+			return 0;
+		trbs_past_seg = num_trbs;
+	} else {
+		/* How many TRBs will be queued past the enqueue segment? */
+		trbs_past_seg = num_trbs - (&seg->trbs[TRBS_PER_SEGMENT - 1] - ring->enqueue);
+		if (trbs_past_seg <= 0)
 			return 0;
 	}
 
-	new_segs = 1 + (trbs_past_seg / (TRBS_PER_SEGMENT - 1));
-	seg = ring->enq_seg;
-
+	new_segs = trbs_past_seg / (TRBS_PER_SEGMENT - 1) + 1;
 	while (new_segs > 0) {
 		seg = list_next_entry_circular(seg, &ring->seg_list, list);
 		if (seg == ring->deq_seg) {
