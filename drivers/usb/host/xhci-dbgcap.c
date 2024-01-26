@@ -393,8 +393,8 @@ static void xhci_dbc_eps_exit(struct xhci_dbc *dbc)
 	memset(dbc->eps, 0, sizeof_field(struct xhci_dbc, eps));
 }
 
-static int dbc_erst_alloc(struct device *dev, struct xhci_ring *evt_ring,
-		    struct xhci_erst *erst, gfp_t flags)
+static int dbc_erst_alloc(struct device *dev, struct xhci_ring *ring,
+			  struct xhci_erst *erst, gfp_t flags)
 {
 	erst->entries = dma_alloc_coherent(dev, sizeof(*erst->entries),
 					   &erst->erst_dma_addr, flags);
@@ -403,7 +403,7 @@ static int dbc_erst_alloc(struct device *dev, struct xhci_ring *evt_ring,
 
 	erst->erst_size = 1;
 	erst->num_entries = 1;
-	erst->entries[0].seg_addr = cpu_to_le64(RING_FIRST_SEG(&evt_ring->seg_list)->dma);
+	erst->entries[0].seg_addr = cpu_to_le64(RING_FIRST_SEG(&ring->seg_list)->dma);
 	erst->entries[0].seg_size = cpu_to_le32(TRBS_PER_SEGMENT);
 	erst->entries[0].rsvd = 0;
 	return 0;

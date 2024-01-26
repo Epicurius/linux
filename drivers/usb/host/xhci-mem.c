@@ -1752,17 +1752,15 @@ void xhci_free_command(struct xhci_hcd *xhci,
 	kfree(command);
 }
 
-static int xhci_alloc_erst(struct xhci_hcd *xhci,
-		    struct xhci_ring *evt_ring,
-		    struct xhci_erst *erst,
-		    gfp_t flags)
+static int xhci_alloc_erst(struct xhci_hcd *xhci, struct xhci_ring *ring,
+			   struct xhci_erst *erst, gfp_t flags)
 {
 	size_t size;
 	unsigned int val;
 	struct xhci_segment *seg;
 	struct xhci_erst_entry *entry;
 
-	size = size_mul(sizeof(struct xhci_erst_entry), evt_ring->num_segs);
+	size = size_mul(sizeof(struct xhci_erst_entry), ring->num_segs);
 	erst->entries = dma_alloc_coherent(xhci_to_hcd(xhci)->self.sysdev,
 					   size, &erst->erst_dma_addr, flags);
 	if (!erst->entries)
@@ -1774,11 +1772,11 @@ static int xhci_alloc_erst(struct xhci_hcd *xhci,
 	 * identical due to the fact that the xhci driver does not support ERST
 	 * expansion.
 	 */
-	erst->erst_size = evt_ring->num_segs;
-	erst->num_entries = evt_ring->num_segs;
+	erst->erst_size = ring->num_segs;
+	erst->num_entries = ring->num_segs;
 
-	seg = RING_FIRST_SEG(&evt_ring->seg_list);
-	for (val = 0; val < evt_ring->num_segs; val++) {
+	seg = RING_FIRST_SEG(&ring->seg_list);
+	for (val = 0; val < ring->num_segs; val++) {
 		entry = &erst->entries[val];
 		entry->seg_addr = cpu_to_le64(seg->dma);
 		entry->seg_size = cpu_to_le32(TRBS_PER_SEGMENT);
