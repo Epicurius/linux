@@ -2091,6 +2091,8 @@ struct xhci_interrupter *
 xhci_create_secondary_interrupter(struct usb_hcd *hcd, int num_seg);
 void xhci_remove_secondary_interrupter(struct usb_hcd
 				       *hcd, struct xhci_interrupter *ir);
+struct xhci_interrupter *xhci_alloc_interrupter(struct xhci_hcd *xhci,
+		unsigned int segs, gfp_t flags);
 
 /* xHCI host controller glue */
 typedef void (*xhci_get_quirks_t)(struct device *, struct xhci_hcd *);

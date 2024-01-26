@@ -2903,6 +2903,47 @@ err_out:
 	return -ENODEV;
 }
 
+static int event_ring_expansion(struct xhci_hcd *xhci, struct xhci_interrupter *ir,
+				unsigned int num_new_segs)
+{
+	unsigned int num_new_entries = ir->erst.num_entries + num_new_segs;
+	struct xhci_erst *erst;
+	size_t size;
+	int ret;
+
+	if (num_new_entries > (1 << HCS_ERST_MAX(xhci->hcs_params2))) {
+		xhci_dbg(xhci, "Can't expand event ring, ERST at max capacity\n");
+		return 1;
+	}
+
+	ret = xhci_alloc_erst(xhci, ir->event_ring, erst, GFP_ATOMIC);
+	if (ret) {
+		xhci_warn(xhci, "Failed to allocate interrupter erst\n");
+		goto err_erst;
+	}
+
+	ret = xhci_ring_expansion(xhci, ir->event_ring, num_new_segs, GFP_ATOMIC);
+	if (ret) {
+		xhci_warn(xhci, "Failed to allocate event ring expansion\n");
+		goto err_segmets;
+	}
+
+	size = size_mul(sizeof(struct xhci_erst_entry), ir->erst.erst_size);
+	dma_free_coherent(xhci_to_hcd(xhci)->self.sysdev, size, ir->erst.entries,
+			  ir->erst.erst_dma_addr);
+
+	memcpy(erst, &ir->erst, sizeof(struct xhci_erst));
+	return 0;
+
+err_segmets:
+	size = size_mul(sizeof(struct xhci_erst_entry), erst->erst_size);
+	dma_free_coherent(xhci_to_hcd(xhci)->self.sysdev, size, erst->entries,
+			  erst->erst_dma_addr);
+
+err_erst:
+	return -ENOMEM;
+}
+
 /*
  * This function handles all OS-owned events on the event ring.  It may drop
  * xhci->lock between event processing (e.g. to pass up port status changes).
@@ -3021,6 +3062,7 @@ irqreturn_t xhci_irq(struct usb_hcd *hcd)
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
 	union xhci_trb *event_ring_deq;
 	struct xhci_interrupter *ir;
+	struct xhci_ring *ring;
 	irqreturn_t ret = IRQ_NONE;
 	u64 temp_64;
 	u32 status;
@@ -3079,6 +3121,12 @@ irqreturn_t xhci_irq(struct usb_hcd *hcd)
 				&ir->ir_set->erst_dequeue);
 		ret = IRQ_HANDLED;
 		goto out;
+	}
+
+	ring = ir->event_ring;
+	if (list_next_entry_circular(ring->enq_seg, &ring->seg_list, list) == ring->deq_seg &&
+	    (&ring->enq_seg->trbs[TRBS_PER_SEGMENT - 1] - ring->enqueue) < TRBS_PER_SEGMENT / 2) {
+		event_ring_expansion(xhci, ir, 1);
 	}
 
 	event_ring_deq = ir->event_ring->dequeue;

@@ -1788,6 +1788,8 @@ static int xhci_alloc_erst(struct xhci_hcd *xhci, struct xhci_ring *ring,
 	return 0;
 }
 
+
+
 static void
 xhci_remove_interrupter(struct xhci_hcd *xhci, struct xhci_interrupter *ir)
 {
@@ -2255,8 +2257,7 @@ static int xhci_setup_port_arrays(struct xhci_hcd *xhci, gfp_t flags)
 	return 0;
 }
 
-static struct xhci_interrupter *
-xhci_alloc_interrupter(struct xhci_hcd *xhci, unsigned int segs, gfp_t flags)
+struct xhci_interrupter *xhci_alloc_interrupter(struct xhci_hcd *xhci, unsigned int segs, gfp_t flags)
 {
 	struct device *dev = xhci_to_hcd(xhci)->self.sysdev;
 	struct xhci_interrupter *ir;
@@ -2267,12 +2268,8 @@ xhci_alloc_interrupter(struct xhci_hcd *xhci, unsigned int segs, gfp_t flags)
 	if (!ir)
 		return NULL;
 
-	/* Number of ring segments should be greater than 0 */
 	max_segs = 1 << HCS_ERST_MAX(xhci->hcs_params2);
-	if (!segs)
-		num_segs = min_t(unsigned int, max_segs, ERST_MAX_SEGS);
-	else
-		num_segs = min_t(unsigned int, max_segs, segs);
+	num_segs = clamp(segs, 2, max_segs);
 
 	ir->event_ring = xhci_ring_alloc(xhci, num_segs, 1, TYPE_EVENT, 0,
 					 flags);
