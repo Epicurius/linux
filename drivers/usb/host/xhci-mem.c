@@ -1752,13 +1752,28 @@ void xhci_free_command(struct xhci_hcd *xhci,
 	kfree(command);
 }
 
+static void xhci_update_erst(struct xhci_hcd *xhci, struct xhci_ring *ring, struct xhci_erst *erst)
+{
+	struct xhci_erst_entry *entry;
+	struct xhci_segment *seg;
+
+	erst->num_entries = 0;
+	seg = RING_FIRST_SEG(&ring->seg_list);
+
+	for (unsigned int val = 0; val < ring->num_segs; val++) {
+		entry = &erst->entries[val];
+		entry->seg_addr = cpu_to_le64(seg->dma);
+		entry->seg_size = cpu_to_le32(TRBS_PER_SEGMENT);
+		entry->rsvd = 0;
+		erst->num_entries += 1;
+		seg = list_next_entry(seg, list);
+	}
+}
+
 static int xhci_alloc_erst(struct xhci_hcd *xhci, struct xhci_ring *ring,
 			   struct xhci_erst *erst, gfp_t flags)
 {
 	size_t size;
-	unsigned int val;
-	struct xhci_segment *seg;
-	struct xhci_erst_entry *entry;
 
 	size = size_mul(sizeof(struct xhci_erst_entry), ring->num_segs);
 	erst->entries = dma_alloc_coherent(xhci_to_hcd(xhci)->self.sysdev,
@@ -1766,24 +1781,8 @@ static int xhci_alloc_erst(struct xhci_hcd *xhci, struct xhci_ring *ring,
 	if (!erst->entries)
 		return -ENOMEM;
 
-	/* 'erst_size' represents the maximum capacity of entries that ERST can
-	 * hold. On the other hand, 'num_entries' indicates the actual number of
-	 * entries currently held in the ERST. At present, these two values are
-	 * identical due to the fact that the xhci driver does not support ERST
-	 * expansion.
-	 */
 	erst->erst_size = ring->num_segs;
-	erst->num_entries = ring->num_segs;
-
-	seg = RING_FIRST_SEG(&ring->seg_list);
-	for (val = 0; val < ring->num_segs; val++) {
-		entry = &erst->entries[val];
-		entry->seg_addr = cpu_to_le64(seg->dma);
-		entry->seg_size = cpu_to_le32(TRBS_PER_SEGMENT);
-		entry->rsvd = 0;
-		seg = list_next_entry(seg, list);
-	}
-
+	xhci_update_erst(xhci, ring, erst);
 	return 0;
 }
 
