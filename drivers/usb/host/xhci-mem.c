@@ -1757,7 +1757,6 @@ static int xhci_alloc_erst(struct xhci_hcd *xhci, struct xhci_ring *ring,
 			   struct xhci_erst *erst, gfp_t flags)
 {
 	size_t size;
-	unsigned int val;
 	struct xhci_segment *seg;
 	struct xhci_erst_entry *entry;
 
@@ -1767,18 +1766,11 @@ static int xhci_alloc_erst(struct xhci_hcd *xhci, struct xhci_ring *ring,
 	if (!erst->entries)
 		return -ENOMEM;
 
-	/*
-	 * 'erst_size' is the number of entries ERST can contain, while
-	 * 'num_entries' is the number of entries ERST contains. They are
-	 * currently the same value, because xHCI does not currently support
-	 * ERST expansion.
-	 */
 	erst->erst_size = ring->num_segs;
-	erst->num_entries = ring->num_segs;
 
 	seg = RING_FIRST_SEG(&ring->seg_list);
-	for (val = 0; val < ring->num_segs; val++) {
-		entry = &erst->entries[val];
+	for (erst->num_entries = 0; erst->num_entries < ring->num_segs; erst->num_entries++) {
+		entry = &erst->entries[erst->num_entries];
 		entry->seg_addr = cpu_to_le64(seg->dma);
 		entry->seg_size = cpu_to_le32(TRBS_PER_SEGMENT);
 		entry->rsvd = 0;
