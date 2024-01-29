@@ -3077,6 +3077,7 @@ irqreturn_t xhci_irq(struct usb_hcd *hcd)
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
 	union xhci_trb *event_ring_deq;
 	struct xhci_interrupter *ir;
+	unsigned int seg_num;
 	irqreturn_t ret = IRQ_NONE;
 	u64 temp_64;
 	u32 status;
@@ -3138,20 +3139,20 @@ irqreturn_t xhci_irq(struct usb_hcd *hcd)
 	}
 
 	event_ring_deq = ir->event_ring->dequeue;
-	/* FIXME this should be a delayed service routine
-	 * that clears the EHB.
-	 */
+	seg_num = ir->event_ring->deq_seg->num;
 	while (xhci_handle_event(xhci, ir) > 0) {
-		if (event_loop++ < TRBS_PER_SEGMENT / 2)
-			continue;
-		xhci_update_erst_dequeue(xhci, ir, event_ring_deq, false);
-		event_ring_deq = ir->event_ring->dequeue;
+		if (seg_num != ir->event_ring->deq_seg->num) {
+			seg_num = ir->event_ring->deq_seg->num;
+			xhci_update_erst_dequeue(xhci, ir, event_ring_deq, false);
+			event_ring_deq = ir->event_ring->dequeue;
+		}
 
-		/* ring is half-full, force isoc trbs to interrupt more often */
-		if (xhci->isoc_bei_interval > AVOID_BEI_INTERVAL_MIN)
-			xhci->isoc_bei_interval = xhci->isoc_bei_interval / 2;
-
-		event_loop = 0;
+		/* When large amount of queued TRBs, force isoc TRBs to interrupt more often */
+		if (event_loop++ >= TRBS_PER_SEGMENT / 2) {
+			event_loop = 0;
+			if (xhci->isoc_bei_interval > AVOID_BEI_INTERVAL_MIN)
+				xhci->isoc_bei_interval = xhci->isoc_bei_interval / 2;
+		}
 	}
 
 	xhci_update_erst_dequeue(xhci, ir, event_ring_deq, true);
