@@ -2959,6 +2959,57 @@ err_out:
 	return -ENODEV;
 }
 
+static int event_ring_expansion(struct xhci_hcd *xhci, struct xhci_interrupter *ir)
+{
+	struct xhci_segment *new_seg;
+	struct xhci_segment *prev;
+	struct xhci_ring *ring;
+
+	ring = ir->event_ring;
+	if (ring->deq_seg == ring->enq_seg)
+		return 1;
+
+	prev = list_prev_entry_circular(ring->deq_seg, &ring->seg_list, list);
+
+	/* Check if xHC has prefetched the deq segment. */
+	if (prev == ring->enq_seg) {
+		xhci_dbg(xhci, "Can't expand event ring, enq to close to deq\n");
+		return 1;
+	}
+
+	/* No need to expand, 2 segments free. */
+	if (list_next_entry_circular(ring->enq_seg, &ring->seg_list, list) != prev)
+		return 1;
+
+	if ((ir->erst.num_entries + num_new_segs) > ir->erst.erst_size) {
+		xhci_dbg(xhci, "Can't expand event ring, ERST at max capacity\n");
+		return 1;
+	}
+
+	new_seg = xhci_segment_alloc(xhci, ring->cycle_state, ring->bounce_buf_len, 0, GFP_ATOMIC);
+	if (!new_seg) {
+		xhci_dbg(xhci, "Event ring expansion failed\n");
+		return -ENOMEM;
+	}
+
+	list_add(&next->list, prev);
+	ring->num_segs++;
+
+	for (seg = prev; !list_is_last(&seg->list, &ring->seg_list); seg = next) {
+		next = list_next_entry(seg, list);
+		next->num = seg->num + 1;
+	}
+
+	xhci_update_erst(xhci, ir->event_ring, &ir->erst);
+
+	trace_xhci_ring_expansion(ring);
+	xhci_dbg_trace(xhci, trace_xhci_dbg_ring_expansion,
+		       "event ring expansion succeed, now has %d segments",
+		       ring->num_segs);
+
+	return 0;
+}
+
 /*
  * This function handles all OS-owned events on the event ring.  It may drop
  * xhci->lock between event processing (e.g. to pass up port status changes).
@@ -3142,6 +3193,7 @@ irqreturn_t xhci_irq(struct usb_hcd *hcd)
 	seg_num = ir->event_ring->deq_seg->num;
 	while (xhci_handle_event(xhci, ir) > 0) {
 		if (seg_num != ir->event_ring->deq_seg->num) {
+			event_ring_expansion(xhci, ir);
 			seg_num = ir->event_ring->deq_seg->num;
 			xhci_update_erst_dequeue(xhci, ir, event_ring_deq, false);
 			event_ring_deq = ir->event_ring->dequeue;
