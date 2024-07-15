@@ -1849,7 +1849,7 @@ void xhci_remove_secondary_interrupter(struct usb_hcd *hcd, struct xhci_interrup
 	spin_lock_irq(&xhci->lock);
 
 	/* interrupter 0 is primary interrupter, don't touch it */
-	if (!ir || !ir->intr_num || ir->intr_num >= xhci->max_interrupters) {
+	if (!ir || !ir->intr_num || ir->intr_num >= xhci->nvecs) {
 		xhci_dbg(xhci, "Invalid secondary interrupter, can't remove\n");
 		spin_unlock_irq(&xhci->lock);
 		return;
@@ -2356,17 +2356,16 @@ xhci_create_secondary_interrupter(struct usb_hcd *hcd, unsigned int segs,
 
 	spin_unlock_irq(&xhci->lock);
 
-	if (i >= xhci->max_interrupers) {
-		xhci_warn(xhci, "Failed to add secondary interrupter, max interrupters %d\n",
-			  xhci->max_interrupters);
+	if (err) {
+		xhci_warn(xhci, "Failed to add secondary interrupter, max vectors %u\n",
+			  xhci->nvecs);
 		xhci_free_interrupter(xhci, ir);
 		return NULL;
 	}
 
 	xhci_set_interrupter_moderation(xhci, ir, imod_interval);
 
-	xhci_dbg(xhci, "Add secondary interrupter %d, max interrupters %d\n",
-		 i, xhci->max_interrupters);
+	xhci_dbg(xhci, "Add secondary interrupter %u, max vectors %u\n", i, xhci->nvecs);
 
 	return ir;
 }
