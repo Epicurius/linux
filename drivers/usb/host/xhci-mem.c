@@ -399,6 +399,14 @@ fail:
 	return NULL;
 }
 
+void xhci_free_stream_ring(struct xhci_hcd *xhci,
+		struct xhci_stream_info *stream_info,
+		unsigned int stream_id)
+{
+	xhci_ring_free(xhci, stream_info->stream_rings[stream_id]);
+	stream_info->stream_rings[stream_id] = NULL;
+}
+
 void xhci_free_endpoint_ring(struct xhci_hcd *xhci,
 		struct xhci_virt_device *virt_dev,
 		unsigned int ep_index)
@@ -653,8 +661,7 @@ struct xhci_stream_info *xhci_alloc_stream_info(struct xhci_hcd *xhci,
 
 		trace_xhci_alloc_stream_info_ctx(stream_info, cur_stream);
 		if (ret) {
-			xhci_ring_free(xhci, cur_ring);
-			stream_info->stream_rings[cur_stream] = NULL;
+			xhci_free_stream_ring(xhci, stream_info, cur_stream);
 			goto cleanup_rings;
 		}
 	}
@@ -668,13 +675,9 @@ struct xhci_stream_info *xhci_alloc_stream_info(struct xhci_hcd *xhci,
 	return stream_info;
 
 cleanup_rings:
-	for (cur_stream = 1; cur_stream < num_streams; cur_stream++) {
-		cur_ring = stream_info->stream_rings[cur_stream];
-		if (cur_ring) {
-			xhci_ring_free(xhci, cur_ring);
-			stream_info->stream_rings[cur_stream] = NULL;
-		}
-	}
+	for (cur_stream = 1; cur_stream < num_streams; cur_stream++)
+		xhci_free_stream_ring(xhci, stream_info, cur_stream);
+
 	xhci_free_command(xhci, stream_info->free_streams_command);
 cleanup_ctx:
 	xhci_free_stream_ctx(xhci,
@@ -734,19 +737,13 @@ void xhci_free_stream_info(struct xhci_hcd *xhci,
 		struct xhci_stream_info *stream_info)
 {
 	int cur_stream;
-	struct xhci_ring *cur_ring;
 
 	if (!stream_info)
 		return;
 
-	for (cur_stream = 1; cur_stream < stream_info->num_streams;
-			cur_stream++) {
-		cur_ring = stream_info->stream_rings[cur_stream];
-		if (cur_ring) {
-			xhci_ring_free(xhci, cur_ring);
-			stream_info->stream_rings[cur_stream] = NULL;
-		}
-	}
+	for (cur_stream = 1; cur_stream < stream_info->num_streams; cur_stream++)
+		xhci_free_stream_ring(xhci, stream_info, cur_stream);
+
 	xhci_free_command(xhci, stream_info->free_streams_command);
 	xhci->cmd_ring_reserved_trbs--;
 	if (stream_info->stream_ctx_array)
@@ -859,7 +856,7 @@ void xhci_free_virt_device(struct xhci_hcd *xhci, int slot_id)
 
 	for (i = 0; i < 31; i++) {
 		if (dev->eps[i].ring)
-			xhci_ring_free(xhci, dev->eps[i].ring);
+			xhci_free_endpoint_ring(xhci, dev, i);
 		if (dev->eps[i].stream_info)
 			xhci_free_stream_info(xhci,
 					dev->eps[i].stream_info);
