@@ -655,9 +655,10 @@ static int xhci_move_dequeue_past_td(struct xhci_hcd *xhci,
 	}
 
 	hw_dequeue = xhci_get_hw_deq(xhci, dev, ep_index, stream_id);
+	new_cycle = hw_dequeue & EP_CTX_CYCLE_MASK;
+	hw_dequeue &= TR_DEQ_PTR;
 	new_seg = ep_ring->deq_seg;
 	new_deq = ep_ring->dequeue;
-	new_cycle = hw_dequeue & 0x1;
 
 	/*
 	 * We want to find the pointer, segment and cycle state of the new trb
@@ -666,8 +667,7 @@ static int xhci_move_dequeue_past_td(struct xhci_hcd *xhci,
 	 * found.
 	 */
 	do {
-		if (!cycle_found && xhci_trb_virt_to_dma(new_seg, new_deq)
-		    == (dma_addr_t)(hw_dequeue & ~0xf)) {
+		if (!cycle_found && xhci_trb_virt_to_dma(new_seg, new_deq) == hw_dequeue) {
 			cycle_found = true;
 			if (td_last_trb_found)
 				break;
@@ -1010,7 +1010,7 @@ static int xhci_invalidate_cancelled_tds(struct xhci_virt_ep *ep)
 		 */
 		hw_deq = xhci_get_hw_deq(xhci, ep->vdev, ep->ep_index,
 					 td->urb->stream_id);
-		hw_deq &= ~0xf;
+		hw_deq &= TR_DEQ_PTR;
 
 		if (td->cancel_status == TD_HALTED || trb_in_td(xhci, td, hw_deq, false)) {
 			switch (td->cancel_status) {
@@ -1100,7 +1100,7 @@ static struct xhci_td *find_halted_td(struct xhci_virt_ep *ep)
 
 	if (!list_empty(&ep->ring->td_list)) { /* Not streams compatible */
 		hw_deq = xhci_get_hw_deq(ep->xhci, ep->vdev, ep->ep_index, 0);
-		hw_deq &= ~0xf;
+		hw_deq &= TR_DEQ_PTR;
 		td = list_first_entry(&ep->ring->td_list, struct xhci_td, td_list);
 		if (trb_in_td(ep->xhci, td, hw_deq, false))
 			return td;
@@ -1448,7 +1448,7 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 		u64 deq;
 		/* 4.6.10 deq ptr is written to the stream ctx for streams */
 		if (ep->ep_state & EP_HAS_STREAMS) {
-			deq = le64_to_cpu(stream_ctx->stream_ring) & SCTX_DEQ_MASK;
+			deq = le64_to_cpu(stream_ctx->stream_ring) & TR_DEQ_PTR;
 
 			/*
 			 * Cadence xHCI controllers store some endpoint state
@@ -1464,7 +1464,7 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 				stream_ctx->reserved[1] = 0;
 			}
 		} else {
-			deq = le64_to_cpu(ep_ctx->deq) & SCTX_DEQ_MASK;
+			deq = le64_to_cpu(ep_ctx->deq) & TR_DEQ_PTR;
 		}
 		xhci_dbg_trace(xhci, trace_xhci_dbg_cancel_urb,
 			"Successful Set TR Deq Ptr cmd, deq = @%08llx", deq);

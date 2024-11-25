@@ -500,8 +500,8 @@ struct xhci_ep_ctx {
 
 /* deq bitmasks */
 #define EP_CTX_CYCLE_MASK		(1 << 0)
-#define SCTX_DEQ_MASK			(~0xfL)
-
+/* bits 63:4 - TR Dequeue Pointer */
+#define TR_DEQ_PTR			(~0xfL)
 
 /**
  * struct xhci_input_control_context
