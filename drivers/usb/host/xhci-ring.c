@@ -1455,6 +1455,8 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 			xhci_handle_halted_endpoint(xhci, ep, td, EP_HARD_RESET);
 		}
 		return;
+	case COMP_SLOT_NOT_ENABLED_ERROR:
+		/* Slot has was not enabled by a Enabled Slot Command */
 	case COMP_CONTEXT_STATE_ERROR:
 		xhci_cleanup_set_deq(xhci, ep, cmd_comp_code);
 		/* Slot state is not Default, Configured, Addressed. Rev 1.2 section 4.5.3 */
@@ -1487,11 +1489,6 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 			xhci_warn(xhci, "Set TR Deq failed. State corrected, reissuing command\n");
 			break;
 		}
-		return;
-	case COMP_SLOT_NOT_ENABLED_ERROR:
-		xhci_warn(xhci, "WARN Set TR Deq Ptr cmd failed because slot %u was not enabled.\n",
-			  slot_id);
-		xhci_cleanup_set_deq(xhci, ep, cmd_comp_code);
 		return;
 	default:
 		xhci_warn(xhci, "WARN Set TR Deq Ptr cmd with unknown completion code of %u.\n",
