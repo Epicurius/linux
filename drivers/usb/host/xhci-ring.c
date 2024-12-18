@@ -1357,11 +1357,10 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 	u64 deq;
 	unsigned int ep_index;
 	unsigned int stream_id;
-	unsigned int ep_state;
-	unsigned int slot_state;
 	struct xhci_td *td;
 	struct xhci_ring *ep_ring;
 	struct xhci_virt_ep *ep;
+	struct xhci_command *cmd;
 	struct xhci_ep_ctx *ep_ctx;
 	struct xhci_slot_ctx *slot_ctx;
 	struct xhci_stream_ctx *stream_ctx;
@@ -1457,13 +1456,37 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 		}
 		return;
 	case COMP_CONTEXT_STATE_ERROR:
-		xhci_warn(xhci, "WARN Set TR Deq Ptr cmd failed due to incorrect slot or ep state.\n");
 		xhci_cleanup_set_deq(xhci, ep, cmd_comp_code);
-		ep_state = GET_EP_CTX_STATE(ep_ctx);
-		slot_state = le32_to_cpu(slot_ctx->dev_state);
-		slot_state = GET_SLOT_STATE(slot_state);
-		xhci_dbg_trace(xhci, trace_xhci_dbg_cancel_urb, "Slot state = %u, EP state = %u",
-			       slot_state, ep_state);
+		/* Slot state is not Default, Configured, Addressed. Rev 1.2 section 4.5.3 */
+		if (GET_SLOT_STATE(le32_to_cpu(slot_ctx->dev_state)) == SLOT_STATE_DISABLED) {
+			/* Slot state values for Enabled and Disabled are both zero */
+			xhci_warn(xhci, "Set TR Deq failed, slot %u disabled\n", slot_id);
+			return;
+		}
+
+		/* Endpoint State is not Stopped or Error. Rev 1.2 section 4.8.3 */
+		switch (GET_EP_CTX_STATE(ep_ctx)) {
+		case EP_STATE_DISABLED:
+			xhci_warn(xhci, "Set TR Deq failed, due to disabled endpoint state\n");
+			return;
+		case EP_STATE_RUNNING:
+			xhci_warn(xhci, "Set TR Deq failed, due to running endpoint\n");
+			cmd = xhci_alloc_command(xhci, false, GFP_ATOMIC);
+			if (!cmd)
+				return;
+			ep->ep_state |= EP_STOP_CMD_PENDING;
+			xhci_queue_stop_endpoint(xhci, cmd, slot_id, ep_index, 0);
+			xhci_ring_cmd_db(xhci);
+			return;
+		case EP_STATE_HALTED:
+			xhci_warn(xhci, "Set TR Deq failed, due to halted endpoint\n");
+			xhci_handle_halted_endpoint(xhci, ep, NULL, EP_SOFT_RESET);
+			return;
+		case EP_STATE_STOPPED:
+		case EP_STATE_ERROR:
+			xhci_warn(xhci, "Set TR Deq failed. State corrected, reissuing command\n");
+			break;
+		}
 		return;
 	case COMP_SLOT_NOT_ENABLED_ERROR:
 		xhci_warn(xhci, "WARN Set TR Deq Ptr cmd failed because slot %u was not enabled.\n",
