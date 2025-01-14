@@ -3050,16 +3050,21 @@ static void xhci_update_erst_dequeue(struct xhci_hcd *xhci,
 	xhci_write_64(xhci, temp_64, &ir->ir_set->erst_dequeue);
 }
 
-/* Clear the interrupt pending bit for a specific interrupter. */
 static void xhci_clear_interrupt_pending(struct xhci_interrupter *ir)
 {
-	if (!ir->ip_autoclear) {
-		u32 irq_pending;
+	u32 irq_pending;
 
-		irq_pending = readl(&ir->ir_set->irq_pending);
-		irq_pending |= IMAN_IP;
-		writel(irq_pending, &ir->ir_set->irq_pending);
-	}
+	/* IP bit is cleared automatically on systems supporting MSI and MSI-X interrupts */
+	if (ir->ip_autoclear)
+		return;
+
+	irq_pending = readl(&ir->ir_set->irq_pending);
+	/* IP bit is write-1-to-clear */
+	irq_pending |= IMAN_IP;
+	writel(irq_pending, &ir->ir_set->irq_pending);
+
+	/* Read operation to guarantee the write has been flushed from posted buffers.*/
+	readl(&ir->ir_set->irq_pending);
 }
 
 /*
