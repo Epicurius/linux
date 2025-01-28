@@ -1472,8 +1472,13 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 		}
 		return;
 	case COMP_CONTEXT_STATE_ERROR:
-		xhci_warn(xhci, "WARN Set TR Deq Ptr cmd failed due to incorrect slot or ep state.\n");
 		xhci_cleanup_set_deq(xhci, ep, cmd_comp_code);
+		if (GET_SLOT_STATE(le32_to_cpu(slot_ctx->dev_state)) == SLOT_STATE_DISABLED) {
+			xhci_warn(xhci, "Set TR Deq failed, invalid slot %u state\n", slot_id);
+			return;
+		}
+
+		xhci_warn(xhci, "WARN Set TR Deq Ptr cmd failed due to incorrect slot or ep state.\n");
 		ep_state = GET_EP_CTX_STATE(ep_ctx);
 		slot_state = le32_to_cpu(slot_ctx->dev_state);
 		slot_state = GET_SLOT_STATE(slot_state);
