@@ -1429,18 +1429,17 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 		}
 		xhci_dbg_trace(xhci, trace_xhci_dbg_cancel_urb,
 			"Successful Set TR Deq Ptr cmd, deq = @%08llx", deq);
-		if (xhci_trb_virt_to_dma(ep->queued_deq_seg,
-					 ep->queued_deq_ptr) == deq) {
-			/* Update the ring's dequeue segment and dequeue pointer
-			 * to reflect the new position.
-			 */
-			ep_ring->deq_seg = ep->queued_deq_seg;
-			ep_ring->dequeue = ep->queued_deq_ptr;
-		} else {
-			xhci_warn(xhci, "Mismatch between completed Set TR Deq Ptr command & xHCI internal state.\n");
-			xhci_warn(xhci, "ep deq seg = %p, deq ptr = %p\n",
-				  ep->queued_deq_seg, ep->queued_deq_ptr);
+		if (xhci_trb_virt_to_dma(ep->queued_deq_seg, ep->queued_deq_ptr) != deq) {
+			xhci_err(xhci, "Mismatch between completed Set TR Deq Ptr command & xHCI internal state.\n");
+			xhci_err(xhci, "ep deq seg = %p, deq ptr = %p\n",
+				 ep->queued_deq_seg, ep->queued_deq_ptr);
+			ep->ep_state &= ~SET_DEQ_PENDING;
+			return;
 		}
+
+		/* Update ep ring's dequeue pointers to reflect the new position. */
+		ep_ring->deq_seg = ep->queued_deq_seg;
+		ep_ring->dequeue = ep->queued_deq_ptr;
 	}
 	/* HW cached TDs cleared from cache, give them back */
 	list_for_each_entry_safe(td, tmp_td, &ep->cancelled_td_list,
